@@ -4,14 +4,13 @@ import sys
 import os
 import json
 import urllib.request
+import zipfile
+import shutil
 
 REPO = "stachenuggets/potatobot"
-CHECK_INTERVAL = 60  # seconds between update checks
+CHECK_INTERVAL = 60
 VERSION_FILE = ".current_release"
-
-
-def run(cmd):
-    return subprocess.run(cmd, shell=True, capture_output=True, text=True)
+FILES_TO_UPDATE = ["minecraft_bot.py", "requirements.txt"]
 
 
 def get_latest_release():
@@ -38,17 +37,35 @@ def save_version(tag):
         f.write(tag)
 
 
+def download_file(tag, filename):
+    url = f"https://raw.githubusercontent.com/{REPO}/refs/tags/{tag}/{filename}"
+    req = urllib.request.Request(url, headers={"User-Agent": "potatobot-launcher"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            content = r.read()
+        with open(filename, "wb") as f:
+            f.write(content)
+        print(f"Updated {filename}")
+    except Exception as e:
+        print(f"Failed to download {filename}: {e}")
+
+
 def pull_release(tag):
     print(f"Pulling release {tag}...")
-    r = run("git fetch --tags")
-    print(f"fetch: {r.stdout.strip() or r.stderr.strip()}")
-    r = run("git reset --hard")
-    print(f"reset: {r.stdout.strip() or r.stderr.strip()}")
-    r = run(f"git checkout {tag}")
-    print(f"checkout: {r.stdout.strip() or r.stderr.strip()}")
-    r = run("pip install -r requirements.txt")
-    print(f"pip: {r.stdout.strip()[-200:] or r.stderr.strip()[-200:]}")
+    for f in FILES_TO_UPDATE:
+        download_file(tag, f)
     save_version(tag)
+    print(f"Now on release {tag}")
+
+
+def install_requirements():
+    python = sys.executable
+    result = subprocess.run(
+        [python, "-m", "pip", "install", "-r", "requirements.txt", "-q"],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"pip error: {result.stderr.strip()}")
 
 
 def start_bot():
@@ -63,6 +80,7 @@ def main():
 
     if latest and latest != current:
         pull_release(latest)
+        install_requirements()
     else:
         print(f"Running release {current or 'unknown'}")
 
@@ -86,6 +104,7 @@ def main():
                 bot.terminate()
                 bot.wait()
                 pull_release(latest)
+                install_requirements()
                 bot = start_bot()
                 print(f"Bot restarted on release {latest}.")
 
