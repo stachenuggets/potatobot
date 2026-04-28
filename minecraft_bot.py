@@ -8,9 +8,16 @@ from discord.ext import commands
 import os
 import subprocess
 import asyncio
+import logging
 from pathlib import Path
 from mcrcon import MCRcon
 from dotenv import load_dotenv
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] %(levelname)s %(message)s',
+    datefmt='%H:%M:%S'
+)
 
 # Load environment variables
 load_dotenv()
@@ -44,10 +51,13 @@ server_state = {
 async def rcon_command(command: str) -> str:
     """Execute a command via RCON and return the response"""
     try:
+        logging.info(f"RCON >> {command}")
         with MCRcon(RCON_HOST, RCON_PASSWORD, port=RCON_PORT) as mcr:
             response = mcr.command(command)
+        logging.info(f"RCON << {response}")
         return response
     except Exception as e:
+        logging.error(f"RCON error on '{command}': {e}")
         raise Exception(f"RCON Error: {str(e)}")
 
 
@@ -58,6 +68,7 @@ async def start_server() -> bool:
     
     try:
         # Start the server process
+        logging.info(f"Starting server: cmd='{SERVER_START_CMD}' cwd='{SERVER_DIR}'")
         server_state['process'] = subprocess.Popen(
             SERVER_START_CMD,
             shell=True,
@@ -67,11 +78,13 @@ async def start_server() -> bool:
             text=True
         )
         server_state['running'] = True
-        
+        logging.info(f"Server process started (pid={server_state['process'].pid})")
+
         # Wait a bit for the server to start
         await asyncio.sleep(3)
         return True
     except Exception as e:
+        logging.error(f"Failed to start server: {e}")
         raise Exception(f"Failed to start server: {str(e)}")
 
 
