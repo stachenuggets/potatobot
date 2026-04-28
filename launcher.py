@@ -2,30 +2,64 @@ import subprocess
 import time
 import sys
 import os
+import json
+import urllib.request
 
+REPO = "stachenuggets/potatobot"
 CHECK_INTERVAL = 60  # seconds between update checks
+VERSION_FILE = ".current_release"
 
-def run(cmd, **kwargs):
-    return subprocess.run(cmd, shell=True, capture_output=True, text=True, **kwargs)
 
-def has_update():
-    run("git fetch origin")
-    result = run("git rev-parse HEAD")
-    local = result.stdout.strip()
-    result = run("git rev-parse origin/main")
-    remote = result.stdout.strip()
-    return local != remote
+def run(cmd):
+    return subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-def pull_update():
-    run("git pull origin main")
+
+def get_latest_release():
+    url = f"https://api.github.com/repos/{REPO}/releases/latest"
+    req = urllib.request.Request(url, headers={"User-Agent": "potatobot-launcher"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+            return data.get("tag_name")
+    except Exception as e:
+        print(f"Failed to check for updates: {e}")
+        return None
+
+
+def get_current_version():
+    if os.path.exists(VERSION_FILE):
+        with open(VERSION_FILE) as f:
+            return f.read().strip()
+    return None
+
+
+def save_version(tag):
+    with open(VERSION_FILE, "w") as f:
+        f.write(tag)
+
+
+def pull_release(tag):
+    print(f"Pulling release {tag}...")
+    run(f"git fetch --tags")
+    run(f"git checkout {tag}")
     run("pip install -r requirements.txt")
+    save_version(tag)
+
 
 def start_bot():
     return subprocess.Popen([sys.executable, "minecraft_bot.py"])
 
+
 def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    pull_update()
+
+    latest = get_latest_release()
+    current = get_current_version()
+
+    if latest and latest != current:
+        pull_release(latest)
+    else:
+        print(f"Running release {current or 'unknown'}")
 
     bot = start_bot()
     print("Bot started.")
@@ -41,13 +75,15 @@ def main():
 
         if time.time() - last_check >= CHECK_INTERVAL:
             last_check = time.time()
-            if has_update():
-                print("Update found, pulling and restarting...")
+            latest = get_latest_release()
+            if latest and latest != get_current_version():
+                print(f"New release {latest} found, updating...")
                 bot.terminate()
                 bot.wait()
-                pull_update()
+                pull_release(latest)
                 bot = start_bot()
-                print("Bot restarted with updates.")
+                print(f"Bot restarted on release {latest}.")
+
 
 if __name__ == "__main__":
     main()
