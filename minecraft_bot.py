@@ -77,17 +77,23 @@ async def start_server() -> bool:
         raise Exception(f"Failed to start server: {str(e)}")
 
 
+async def is_rcon_online() -> bool:
+    """Check if the server is reachable via RCON"""
+    try:
+        await rcon_command("list")
+        return True
+    except:
+        return False
+
+
 async def stop_server() -> bool:
     """Stop the Minecraft server gracefully via RCON"""
-    if not server_state['running']:
-        return False  # Not running
-    
+    if not await is_rcon_online():
+        return False
+
     try:
-        # Send stop command via RCON
         await rcon_command("stop")
         server_state['running'] = False
-        
-        # Give it time to shut down
         await asyncio.sleep(2)
         return True
     except Exception as e:
@@ -96,9 +102,9 @@ async def stop_server() -> bool:
 
 async def save_server() -> bool:
     """Save the server data"""
-    if not server_state['running']:
+    if not await is_rcon_online():
         raise Exception("Server is not running!")
-    
+
     try:
         await rcon_command("save-all")
         await asyncio.sleep(1)
@@ -208,7 +214,7 @@ async def restart_cmd(ctx):
     async with ctx.typing():
         try:
             # Save first
-            if server_state['running']:
+            if await is_rcon_online():
                 await rcon_command("say Server restarting in 10 seconds...")
                 await rcon_command("save-all")
                 await asyncio.sleep(2)
