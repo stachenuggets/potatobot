@@ -57,13 +57,11 @@ async def start_server() -> bool:
         return False  # Already running
     
     try:
-        # Change to server directory
-        os.chdir(SERVER_DIR)
-        
         # Start the server process
         server_state['process'] = subprocess.Popen(
             SERVER_START_CMD,
             shell=True,
+            cwd=SERVER_DIR,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
