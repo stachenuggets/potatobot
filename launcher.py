@@ -40,9 +40,14 @@ def save_version(tag):
 
 def pull_release(tag):
     print(f"Pulling release {tag}...")
-    run(f"git fetch --tags")
-    run(f"git checkout {tag}")
-    run("pip install -r requirements.txt")
+    r = run("git fetch --tags")
+    print(f"fetch: {r.stdout.strip() or r.stderr.strip()}")
+    r = run("git reset --hard")
+    print(f"reset: {r.stdout.strip() or r.stderr.strip()}")
+    r = run(f"git checkout {tag}")
+    print(f"checkout: {r.stdout.strip() or r.stderr.strip()}")
+    r = run("pip install -r requirements.txt")
+    print(f"pip: {r.stdout.strip()[-200:] or r.stderr.strip()[-200:]}")
     save_version(tag)
 
 
