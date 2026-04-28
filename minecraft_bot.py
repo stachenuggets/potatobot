@@ -105,7 +105,11 @@ async def stop_server() -> bool:
     try:
         await rcon_command("stop")
         server_state['running'] = False
-        await asyncio.sleep(2)
+        await asyncio.sleep(5)
+        # Kill the bat process (and children) in case pause is holding it open
+        if server_state['process'] and server_state['process'].poll() is None:
+            logging.info("Killing lingering bat process after stop")
+            subprocess.run(f"taskkill /F /T /PID {server_state['process'].pid}", shell=True)
         return True
     except Exception as e:
         raise Exception(f"Failed to stop server: {str(e)}")
